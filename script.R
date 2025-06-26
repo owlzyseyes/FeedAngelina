@@ -6,55 +6,56 @@ library(future)
 library(furrr)
 library(mongolite)
 
-session <- bow("https://www.allrecipes.com/recipes-a-z-6735880")
-page <- scrape(session)
+session <- polite::bow("https://www.allrecipes.com/recipes-a-z-6735880")
+page <- polite::scrape(session)
 
 # Extract all category links
 category_links <- page %>%
-  html_nodes(".mntl-alphabetical-list__group a") %>%
-  html_attr("href") %>%
+  rvest::html_nodes(".mntl-alphabetical-list__group a") %>%
+  rvest::html_attr("href") %>%
   unique()
 
 # Helper function to get recipes from each category
 extract_recipes <- function(url) {
   cat("Scraping:", url, "\n")
-  session <- bow(url, user_agent = "rvest_bot/0.1")
-  page <- try(scrape(session), silent = TRUE)
+  session <- polite::bow(url, user_agent = "rvest_bot/0.1")
+  page <- try(polite::scrape(session), silent = TRUE)
   if (inherits(page, "try-error")) return(NULL)
   
   # Featured 3
   featured <- page %>%
-    html_node("#mntl-three-post__inner_1-0") %>%
-    html_nodes("a") %>%
+    rvest::html_node("#mntl-three-post__inner_1-0") %>%
+    rvest::html_nodes("a") %>%
     {
-      tibble(
-        name = html_text(., trim = TRUE),
-        link = html_attr(., "href"),
+      tibble::tibble(
+        name = rvest::html_text(., trim = TRUE),
+        link = rvest::html_attr(., "href"),
         type = "Featured"
       )
     }
   
   # Full list
   more <- page %>%
-    html_node("#mntl-taxonomysc-article-list-group_1-0") %>%
-    html_nodes("a") %>%
+    rvest::html_node("#mntl-taxonomysc-article-list-group_1-0") %>%
+    rvest::html_nodes("a") %>%
     {
-      tibble(
-        name = html_text(., trim = TRUE),
-        link = html_attr(., "href"),
+      tibble::tibble(
+        name = rvest::html_text(., trim = TRUE),
+        link = rvest::html_attr(., "href"),
         type = "List"
       )
     }
   
-  bind_rows(featured, more) %>%
-    mutate(category_url = url)
+  dplyr::bind_rows(featured, more) %>%
+    dplyr::mutate(category_url = url)
 }
 
+future::plan(multisession, workers = 8)
 # Step 3: Scrape all categories
-all_recipes <- map_dfr(category_links, extract_recipes)
+all_recipes <- purrr::map_dfr(category_links, extract_recipes)
 
 # Preview
-glimpse(all_recipes)
+dplyr::glimpse(all_recipes)
 
 
 
