@@ -5,6 +5,10 @@ library(purrr)
 library(future)
 library(furrr)
 library(mongolite)
+library(dotenv)
+
+# Load environment variables
+dotenv::load_dot_env()
 
 session <- polite::bow("https://www.allrecipes.com/recipes-a-z-6735880")
 page <- polite::scrape(session)
@@ -52,7 +56,12 @@ extract_recipes <- function(url) {
 
 future::plan(multisession, workers = 8)
 # Step 3: Scrape all categories
-all_recipes <- purrr::map_dfr(category_links, extract_recipes)
+all_recipes <- future_map_dfr(
+  category_links,
+  extract_recipes,
+  .progress = TRUE,
+  .options = furrr_options(seed = TRUE)
+)
 
 # Preview
 dplyr::glimpse(all_recipes)
@@ -64,15 +73,17 @@ dplyr::glimpse(all_recipes)
 # Set up parallelism
 plan(multisession, workers = 8)  # adjust based on your system's number of cores
 
+mongo_uri <- Sys.getenv("MONGODB_URI")
+
 mongo_conn <- mongo(
   collection = "Recipes",
   db = "Project",
-  url = "mongodb+srv://admin:admin@mycluster.6mngz.mongodb.net/?retryWrites=true&w=majority&appName=myCluster"
+  url = mongo_uri
 )
 
 
 
-# Run this locally
+# Run this if you intend to save data locally
 extract_ingredients <- function(name, link, type, category_url) {
   cat("Scraping:", name, "\n")
   
@@ -101,7 +112,7 @@ ingredients <- all_recipes %>%
 
 
 
-# Run this to stream to MongoDB
+# Run this if intention is to stream to MongoDB
 extract_ingredients_stream <- function(name, link, type, category_url) {
   cat("Scraping:", name, "\n")
   
