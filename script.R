@@ -1,7 +1,8 @@
 library(rvest)
 library(polite)
-library(dplyr)
 library(purrr)
+library(tidyverse)
+library(jsonlite)
 library(future)
 library(furrr)
 library(mongolite)
@@ -76,7 +77,7 @@ plan(multisession, workers = 8)  # adjust based on your system's number of cores
 mongo_uri <- Sys.getenv("MONGODB_URI")
 
 mongo_conn <- mongo(
-  collection = "Recipes",
+  collection = "Recipes_deduped",
   db = "Project",
   url = mongo_uri
 )
@@ -142,4 +143,32 @@ extract_ingredients_stream <- function(name, link, type, category_url) {
 
 ingredients_stream <- all_recipes %>%
   future_pmap_dfr(extract_ingredients_stream, .progress = TRUE, .options = furrr_options(seed = TRUE))
+
+
+# Proceeding from checkpoint...
+only_recipes <- as.data.frame(all_recipes$link) |> 
+  dplyr::rename(recipe_url = `all_recipes$link`) |> 
+  dplyr::mutate(recipe_url = as.character(recipe_url))
+
+
+readr::write_csv(only_recipes, "All Recipes.csv")
+
+# Load the missing recipes
+scraped_recipes <- mongo_conn$find(fields = '{"recipe_url": 1, "_id": 0}')
+scraped_recipes <- scraped_recipes |> 
+  dplyr::distinct()
+scraped_recipes_ok <- unlist(scraped_recipes)
+only_recipes_ok <- as.character(only_recipes)
+readr::write_csv(scraped_recipes, "Scraped Recipes.csv")
+
+
+missing_recipes <- setdiff(only_recipes_ok, scraped_recipes_ok)
+missing_recipes <- eval(parse(text = missing_recipes))
+missing_recipes_df <- data.frame(recipe_url = missing_recipes,
+                                 stringsAsFactors = FALSE)
+unique(missing_recipes)
+## SCRAPE ONLY RECIPES NOT PRESENT IN THE ALL_RECIPES VARIABLE, CHECK DATA IN MONGODB FOR DIFFERENCE.
+
+
+
 
