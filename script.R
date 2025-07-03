@@ -70,6 +70,7 @@ dplyr::glimpse(all_recipes)
 
 
 
+
 # Now extract ingredients for each recipe
 # Set up parallelism
 plan(multisession, workers = 8)  # adjust based on your system's number of cores
@@ -77,7 +78,7 @@ plan(multisession, workers = 8)  # adjust based on your system's number of cores
 mongo_uri <- Sys.getenv("MONGODB_URI")
 
 mongo_conn <- mongo(
-  collection = "Recipes_deduped",
+  collection = "Recipes_deduped_2",
   db = "Project",
   url = mongo_uri
 )
@@ -141,34 +142,31 @@ extract_ingredients_stream <- function(name, link, type, category_url) {
   return(NULL)  # No need to return a tibble now
 }
 
-ingredients_stream <- all_recipes %>%
+# Found some duplicated links in there
+only_recipes <- tibble(all_recipes)
+only_recipes_unique <- only_recipes[!duplicated(only_recipes["link"]), ]
+readr::write_csv(only_recipes_unique, "All Recipes.csv")
+
+# TODO: RUN THIS
+ingredients_stream <- only_recipes_unique %>%
   future_pmap_dfr(extract_ingredients_stream, .progress = TRUE, .options = furrr_options(seed = TRUE))
 
 
-# Proceeding from checkpoint...
-only_recipes <- as.data.frame(all_recipes$link) |> 
-  dplyr::rename(recipe_url = `all_recipes$link`) |> 
-  dplyr::mutate(recipe_url = as.character(recipe_url))
-
-
-readr::write_csv(only_recipes, "All Recipes.csv")
-
+# TODO: THEN INSPECT THIS AFTER RUNNING THAT ^^ FOR SANITY
 # Load the missing recipes
 scraped_recipes <- mongo_conn$find(fields = '{"recipe_url": 1, "_id": 0}')
 scraped_recipes <- scraped_recipes |> 
   dplyr::distinct()
 scraped_recipes_ok <- unlist(scraped_recipes)
-only_recipes_ok <- as.character(only_recipes)
-readr::write_csv(scraped_recipes, "Scraped Recipes.csv")
+scraped_recipes_data<- data.frame(recipe_url = unlist(scraped_recipes$recipe_url))
+write.csv(scraped_recipes_data, "Scraped Recipes.csv", row.names = FALSE)
 
 
-missing_recipes <- setdiff(only_recipes_ok, scraped_recipes_ok)
+missing_recipes <- setdiff(only_recipes_unique, scraped_recipes_data)
 missing_recipes <- eval(parse(text = missing_recipes))
 missing_recipes_df <- data.frame(recipe_url = missing_recipes,
                                  stringsAsFactors = FALSE)
 unique(missing_recipes)
-## SCRAPE ONLY RECIPES NOT PRESENT IN THE ALL_RECIPES VARIABLE, CHECK DATA IN MONGODB FOR DIFFERENCE.
-
 
 
 
