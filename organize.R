@@ -39,7 +39,7 @@ ratings_df <- ratings_df |>
     n_ratings = as.numeric(gsub("[^0-9]", "", total)),  # remove non-digits
     n_reviews = as.numeric(gsub("[^0-9]", "", reviews))  # same for reviews
   ) |>
-  select(-avg, -total, -reviews)  # drop original columns if you want
+  select(-avg, -total, -reviews)  # drop original columns
 
 
 # Count using flexible matching
@@ -170,11 +170,11 @@ extract_servings <- function(serving_str) {
   as.numeric(str_extract(serving_str, "\\d+"))
 }
 
-almost_there <- almost_there |> 
+there_we_go <- almost_there |> 
   mutate(servings = as.numeric(extract_servings(servings)),
          calories = as.numeric(calories))
 
-readr::write_csv(almost_there, "data/all_recipes.csv")
+readr::write_csv(there_we_go, "data/all_recipes.csv")
 
 # Documentation notes
 # Calories have no units. Proteins, Carbs, Fat are in g.
