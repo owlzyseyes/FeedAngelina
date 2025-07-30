@@ -20,12 +20,14 @@ rD <- rsDriver(browser = "firefox",
                phantomver = NULL,
                port = free_port())
 
+recipes_a_to_z <- "https://www.allrecipes.com/recipes-a-z-6735880#alphabetical-list-z"
+cuisines_a_to_z <- "https://www.allrecipes.com/cuisine-a-z-6740455"
 
 # Open the browser and navigate to the URL of interest
 remDr <- rD$client
 remDr$open()
 remDr$close()
-remDr$navigate("https://www.allrecipes.com/recipes-a-z-6735880#alphabetical-list-z")
+remDr$navigate(cuisines_a_to_z)
 
 # Grab page source
 page_source <- remDr$getPageSource()[[1]]
@@ -83,7 +85,7 @@ scrape_category_recipes <- function(url) {
 # Loop through all category URLs and bind results
 results <- purrr::map_dfr(category_urls, scrape_category_recipes)
 
-# I spy duplicates
+# I spy duplicates (Only happened for recipes_a_to_z)
 dupes <- results |> dplyr::count(link) |> dplyr::filter(n > 1)
 
 # So I do the deduping
@@ -92,10 +94,14 @@ results <- results |> dplyr::distinct(link, .keep_all = TRUE)
 mongo_uri <- Sys.getenv("MONGODB_URI")
 
 mongo_conn <- mongo(
-  collection = "Njaa",
-  db = "Project",
+  collection = "Cuisines",
+  db = "Cook",
   url = mongo_uri
 )
+
+mongo_conn <- mongo(collection = "Cuisines",
+                    db = "Cook",
+                    url = "mongodb+srv://admin:admin@mycluster.6mngz.mongodb.net/Cook")
 
 scrape_recipe_details <- function(recipe_url) {
   remDr$navigate(recipe_url)
@@ -109,9 +115,9 @@ scrape_recipe_details <- function(recipe_url) {
   date <- page |> html_node("div.mntl-attribution__item-date") |> html_text(trim = TRUE)
   
   # Ratings
-  avg_rating <- page |> html_node("span.ratings-histogram__average-text") |> html_text(trim = TRUE)
-  total_rating <- page |> html_node("span.ratings-histogram__total") |> html_text(trim = TRUE)
-  review_count <- page |> html_node("span.feedback-list__review-total") |> html_text(trim = TRUE)
+  average_rating <- page |> html_node("#mm-recipes-review-bar__rating_1-0") |> html_text(trim = TRUE)
+  total_ratings  <- page |> html_node("#mm-recipes-review-bar__rating-count_1-0") |> html_text(trim = TRUE)
+  review_count   <- page |> html_node("#mm-recipes-review-bar__comment-count_1-0") |> html_text(trim = TRUE)
   
   # Metadata
   labels <- page |> html_nodes("div.mm-recipes-details__label") |> html_text(trim = TRUE)
@@ -131,7 +137,7 @@ scrape_recipe_details <- function(recipe_url) {
     url = recipe_url,
     author = author,
     date_published = date,
-    ratings = list(tibble::tibble(avg = avg_rating, total = total_rating, reviews = review_count)),
+    ratings = list(tibble::tibble(avg = average_rating, total = total_ratings, reviews = review_count)),
     details = list(details),
     ingredients = list(ingredients),
     nutrition = list(nutrition)
@@ -149,6 +155,7 @@ with_progress({
     }, silent = TRUE)
   })
 })
+
 
 
 # Checkpoints - fetched scraped urls from the DB
