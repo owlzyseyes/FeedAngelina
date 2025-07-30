@@ -1,4 +1,4 @@
-remDr$navigate("https://www.allrecipes.com/air-fryer-honey-mustard-salmon-bites-recipe-11680825")
+remDr$navigate("https://www.allrecipes.com/recipe/105016/simple-and-easy-stuffed-peppers/")
 
 # Assuming you've navigated and read the page source
 page <- read_html(remDr$getPageSource()[[1]])
@@ -30,9 +30,9 @@ nutrition_values <- page |> html_nodes("td.mm-recipes-nutrition-facts-summary__t
 nutrition <- tibble::tibble(fact = nutrition_names, amount = nutrition_values)
 
 # Ratings and Reviews
-average_rating <- page |> html_node("span.ratings-histogram__average-text") |> html_text(trim = TRUE)
-total_ratings  <- page |> html_node("span.ratings-histogram__total") |> html_text(trim = TRUE)
-review_count   <- page |> html_node("span.feedback-list__review-total") |> html_text(trim = TRUE)
+average_rating <- page |> html_node("#mm-recipes-review-bar__rating_1-0") |> html_text(trim = TRUE)
+total_ratings  <- page |> html_node("#mm-recipes-review-bar__rating-count_1-0") |> html_text(trim = TRUE)
+review_count   <- page |> html_node("#mm-recipes-review-bar__comment-count_1-0") |> html_text(trim = TRUE)
 
 meta <- tibble::tibble(
   author = author,
