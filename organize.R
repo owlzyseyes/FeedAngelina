@@ -4,7 +4,7 @@ library(purrr)
 library(janitor)
 
 # Fetched from DB
-recipes <- jsonlite::fromJSON("data/Project.Njaa.json")
+recipes <- jsonlite::fromJSON("data/Cook.Recipes.json")
 
 # Select necessary columns needed for join
 recipe_names_links <- results |> 
@@ -33,13 +33,15 @@ ratings_df <- recipes_joined |>
   ) |>
   unnest(ratings)
 
-ratings_df <- ratings_df |>
+ratings_df <- ratings_df %>%
   mutate(
-    avg_rating = as.numeric(sub(" out of 5", "", avg)),  # extract number before text
-    n_ratings = as.numeric(gsub("[^0-9]", "", total)),  # remove non-digits
-    n_reviews = as.numeric(gsub("[^0-9]", "", reviews))  # same for reviews
-  ) |>
-  select(-avg, -total, -reviews)  # drop original columns
+    total = str_extract(total, "\\d+") %>% as.numeric(),
+    reviews = case_when(
+      str_detect(reviews, "Be the first") ~ NA_real_,
+      TRUE ~ str_extract(reviews, "\\d+") %>% as.numeric()
+    ),
+    avg = as.numeric(avg)
+  )
 
 
 # Count using flexible matching
@@ -174,7 +176,13 @@ there_we_go <- almost_there |>
   mutate(servings = as.numeric(extract_servings(servings)),
          calories = as.numeric(calories))
 
-readr::write_csv(there_we_go, "data/all_recipes.csv")
+there_we_go <- there_we_go |> 
+  rename(
+    avg_rating = avg,
+    total_ratings = total
+  )
+
+readr::write_csv(there_we_go, "data/allrecipes.csv")
 
 # Documentation notes
 # Calories have no units. Proteins, Carbs, Fat are in g.

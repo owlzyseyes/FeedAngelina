@@ -27,7 +27,7 @@ cuisines_a_to_z <- "https://www.allrecipes.com/cuisine-a-z-6740455"
 remDr <- rD$client
 remDr$open()
 remDr$close()
-remDr$navigate(cuisines_a_to_z)
+remDr$navigate(recipes_a_to_z)
 
 # Grab page source
 page_source <- remDr$getPageSource()[[1]]
@@ -85,7 +85,7 @@ scrape_category_recipes <- function(url) {
 # Loop through all category URLs and bind results
 results <- purrr::map_dfr(category_urls, scrape_category_recipes)
 
-# I spy duplicates (Only happened for recipes_a_to_z)
+# I spy duplicates
 dupes <- results |> dplyr::count(link) |> dplyr::filter(n > 1)
 
 # So I do the deduping
@@ -94,18 +94,18 @@ results <- results |> dplyr::distinct(link, .keep_all = TRUE)
 mongo_uri <- Sys.getenv("MONGODB_URI")
 
 mongo_conn <- mongo(
-  collection = "Cuisines",
+  collection = "Recipes",
   db = "Cook",
   url = mongo_uri
 )
 
-mongo_conn <- mongo(collection = "Cuisines",
+mongo_conn <- mongo(collection = "Recipes",
                     db = "Cook",
                     url = "mongodb+srv://admin:admin@mycluster.6mngz.mongodb.net/Cook")
 
 scrape_recipe_details <- function(recipe_url) {
   remDr$navigate(recipe_url)
-  Sys.sleep(1.1)
+  Sys.sleep(0.5)
   
   page <- read_html(remDr$getPageSource()[[1]])
   
@@ -144,7 +144,7 @@ scrape_recipe_details <- function(recipe_url) {
   )
 }
 
-# NOTE: THIS TOOK A VERY LONG TIME TO RUN.
+# NOTE: THIS TOOK A VERY LONG TIME TO RUN. ~13hrs
 with_progress({
   p <- progressor(steps = length(results$link))
   purrr::walk(results$link, function(link) {
@@ -160,27 +160,30 @@ with_progress({
 
 # Checkpoints - fetched scraped urls from the DB
 # Load scraped URLs
-# scraped <- readr::read_csv("C:/Users/owlzy/Desktop/Scraped_urls.csv")
+# scraped <- readr::read_csv("C:/Users/owlzy/Desktop/Scraped/scraped.csv")
 # scraped_2 <- readr::read_csv("C:/Users/owlzy/Desktop/scraped_urls_2.csv")
 # scraped_3 <- readr::read_csv("C:/Users/owlzy/Desktop/scraped_urls_3.csv")
 # scraped_4 <- readr::read_csv("C:/Users/owlzy/Desktop/scraped_urls_4.csv")
 # all <- readr::read_csv("C:/Users/owlzy/Desktop/all_scraped.csv")
 
 # Filter out already scraped links from results
-# unscraped_df <- results[!(results$link %in% all$url), ]
+unscraped_df <- results[!(results$link %in% scraped$url), ]
 
 # with_progress({
 #   p <- progressor(steps = length(unscraped_df$link))
 #   purrr::walk(unscraped_df$link, function(link) {
 #     try({
-#       # Check if link already exists
-#       exists <- mongo_conn$count(paste0('{"url": "', link, '"}')) > 0
-#       if (!exists) {
-#         recipe_df <- scrape_recipe_details(link)
+#       recipe_df <- scrape_recipe_details(link)
+#       recipe_url <- recipe_df$url[1]
+#       
+#       # Check if this URL already exists in the collection
+#       already_scraped <- mongo_conn$count(query = sprintf('{"url": "%s"}', recipe_url)) > 0
+#       
+#       if (!already_scraped) {
 #         mongo_conn$insert(recipe_df)
 #         p(message = paste("Inserted:", link))
 #       } else {
-#         p(message = paste("Skipped (duplicate):", link))
+#         p(message = paste("Already scraped:", link))
 #       }
 #     }, silent = TRUE)
 #   })
